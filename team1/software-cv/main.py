@@ -1,7 +1,7 @@
 import cv2
 from ultralytics import YOLO
 
-model = YOLO('yolov8m.pt')
+model = YOLO('best.pt')
 
 cap = cv2.VideoCapture(0)
 
@@ -15,10 +15,10 @@ while True:
         print("Error: Could not read frame.")
         break
 
-    results = model(frame, stream=True)
+    results = model(frame, conf=0.25)
 
-    for result in results:
-        annotated_frame = result.plot()
+    result = results[0]
+    annotated_frame = result.plot()
 
     cv2.imshow('YOLOv8 Detection', annotated_frame)
 
