@@ -1,5 +1,6 @@
 import Image from "next/image";
 import gearIcon from "../../public/gear-icon.svg";
+import YOLOStream from "@/components/YOLOStream";
 
 const Home = () => {
   return (
@@ -14,22 +15,13 @@ const Home = () => {
       </header>
 
       <main className="grid flex-1 grid-cols-1 gap-6 p-6 md:grid-cols-3">
-        
         <div className="col-span-2 min-h-[600px] rounded-md border border-gray-400 bg-white shadow-sm">
+          <img src="http://10.13.219.98:5000/video_feed" alt="Live Stream" style={{ width: '100%' }} />
         </div>
- 
+
         <div className="flex min-h-[600px] flex-col justify-end gap-3 rounded-md border border-gray-400 bg-white p-4 shadow-sm">
-          <div className="rounded-md bg-[#ced4da] p-3 text-lg text-black shadow-sm">
-            1:00PM - Cat Detected
-          </div>
-          <div className="rounded-md bg-[#ced4da] p-3 text-lg text-black shadow-sm">
-            1:30PM - Person Detected
-          </div>
-          <div className="rounded-md bg-[#ced4da] p-3 text-lg text-black shadow-sm">
-            2:00PM - Person Detected
-          </div>
+          <YOLOStream />
         </div>
-        
       </main>
     </div>
   );
