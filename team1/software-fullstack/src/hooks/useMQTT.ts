@@ -1,61 +1,93 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import mqtt, { MqttClient } from "mqtt";
+import mqtt from "mqtt";
+import {
+  DetectionPayload,
+  surveillanceConfig,
+} from "@/config/surveillance";
 
-// Pointing to your verified backend IP address on the broker's WebSocket port
-const BROKER_URL = "ws://10.13.244.89:9001";
+type UseMQTTReturn = {
+  connected: boolean;
+  latest: DetectionPayload | null;
+  messages: string[];
+};
 
-export default function useMQTT(topic: string): string[] {
+function parsePayload(raw: string): DetectionPayload | null {
+  try {
+    const data = JSON.parse(raw);
+    if (!Array.isArray(data.detections)) {
+      return null;
+    }
+
+    return {
+      count: typeof data.count === "number" ? data.count : data.detections.length,
+      detections: data.detections.map(
+        (det: { label?: string; confidence?: number }) => ({
+          label: String(det.label ?? "unknown"),
+          confidence: Number(det.confidence ?? 0),
+        }),
+      ),
+    };
+  } catch {
+    return null;
+  }
+}
+
+export default function useMQTT(): UseMQTTReturn {
+  const [connected, setConnected] = useState(false);
+  const [latest, setLatest] = useState<DetectionPayload | null>(null);
   const [messages, setMessages] = useState<string[]>([]);
 
   useEffect(() => {
-    let client: MqttClient;
+    const { mqttBrokerUrl, mqttTopic, maxLogEntries } = surveillanceConfig;
 
-    console.log(`Attempting to connect to MQTT broker at: ${BROKER_URL}`);
-    client = mqtt.connect(BROKER_URL);
+    console.log(`Connecting to MQTT broker at ${mqttBrokerUrl}`);
+    const client = mqtt.connect(mqttBrokerUrl, {
+      reconnectPeriod: 3000,
+      connectTimeout: 10000,
+    });
 
-    // Triggered when successfully connected to the broker via WebSockets
     client.on("connect", () => {
+      setConnected(true);
       console.log("Connected to MQTT broker");
 
-      client.subscribe(topic, (err) => {
+      client.subscribe(mqttTopic, (err) => {
         if (err) {
           console.error("Subscription error:", err);
         } else {
-          console.log(`Successfully subscribed to topic: ${topic}`);
+          console.log(`Successfully subscribed to topic: ${mqttTopic}`);
         }
       });
     });
 
-    // Triggered whenever a new detection payload arrives
     client.on("message", (_topic, payload) => {
       const msg = payload.toString();
+      const parsed = parsePayload(msg);
 
-      setMessages((prev) => {
-        const updated = [...prev, msg];
-        // YOLO outputs frames very quickly. Keep only the 10 freshest logs
-        // to prevent your Next.js application from leaking memory and crashing.
-        if (updated.length > 10) {
-          return updated.slice(updated.length - 10);
-        }
-        return updated;
-      });
+      console.log("MQTT message received:", msg);
+
+      if (parsed) {
+        setLatest(parsed);
+      }
+
+      setMessages((prev) => [...prev, msg].slice(-maxLogEntries));
     });
 
-    // Handle and log network connection drops or configuration faults
     client.on("error", (err) => {
+      setConnected(false);
       console.error("MQTT connection error:", err);
     });
 
-    // Clean up the websocket channel when the component unmounts
-    return () => {
-      if (client) {
-        console.log(`Disconnecting from MQTT topic: ${topic}`);
-        client.end();
-      }
-    };
-  }, [topic]);
+    client.on("close", () => {
+      setConnected(false);
+    });
 
-  return messages;
+    return () => {
+      console.log(`Disconnecting from MQTT topic: ${mqttTopic}`);
+      client.end();
+    };
+  }, []);
+
+  return { connected, latest, messages };
 }
